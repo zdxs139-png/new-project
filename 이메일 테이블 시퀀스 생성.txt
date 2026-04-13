@@ -1,0 +1,19 @@
+이메일 테이블 시퀀스 생성
+
+USE [ACMS]
+GO
+
+USE [ACMS]
+GO
+
+/****** Object:  Sequence [dbo].[SYS_EMAIL_FILE_SEQ]    Script Date: 2026-04-07 오후 6:21:28 ******/
+CREATE SEQUENCE [dbo].[SYS_EMAIL_FILE_SEQ] 
+ AS [bigint]
+ START WITH 1
+ INCREMENT BY 1
+ MINVALUE -9223372036854775808
+ MAXVALUE 9223372036854775807
+ CACHE 
+GO
+
+
