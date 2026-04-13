@@ -1,23 +1,22 @@
 package acms.sys.email;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+
 import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
+
 import acms.common.BaseService;
 import acms.common.GC;
 import acms.common.GF;
 import acms.sys.file.FileService;
 import acms.sys.mlang.SYS_MLANG;
 import acms.sys.user.UserDTO;
-import common.config.ApiDTO;
 import lombok.extern.slf4j.Slf4j;
-
 
 @Slf4j
 @Service
@@ -33,8 +32,7 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 	private FileService fileService;
 
 	// 메인 그리드 조회
-	public HashMap<String, Object> getLoadEmailGridData(HashMap<String, Object> mapParam,
-			HttpServletRequest request) {
+	public HashMap<String, Object> getLoadEmailGridData(HashMap<String, Object> mapParam, HttpServletRequest request) {
 		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
 
 		if (GF.getLoginYn(request)) {
@@ -57,7 +55,6 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 				mapReturn.put("emailDwDay", emailDwDay);
 				mapReturn.put("emailDwCnt", emailDwCnt);
 
-
 			} catch (Exception e) {
 				mapReturn.put(GC.RESULT_CODE, GC.RESULT_ERROR);
 				mapReturn.put(GC.RESULT_MESSAGE, SYS_MLANG.get("msg_DataError", request));
@@ -73,8 +70,7 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 	}
 
 	// 메인 그리드 저장
-	public HashMap<String, Object> getSaveEmailGrid(HashMap<String, Object> mapParam,
-			MultipartHttpServletRequest request) {
+	public HashMap<String, Object> getSaveEmailGrid(HashMap<String, Object> mapParam, MultipartHttpServletRequest request) {
 		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
 
 		if (GF.getLoginYn(request)) {
@@ -111,7 +107,6 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 
 				long fileGrpSeq = GF.getLong(row.get("fileGrpSeq"));
 
-
 				if (fileGrpSeq <= 0) {
 					mapReturn.put(GC.RESULT_CODE, GC.RESULT_FAIL);
 					mapReturn.put(GC.RESULT_MESSAGE, "첨부파일 그룹 생성에 실패했습니다.");
@@ -143,67 +138,39 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 		return mapReturn;
 	}
 
-
-
 	// 삭제
-	@SuppressWarnings("unchecked")
-	public HashMap<String, Object> getDeleteEmail(HashMap<String, Object> mapParam,
-			HttpServletRequest request) {
+	public HashMap<String, Object> getDeleteEmail(HashMap<String, Object> mapParam, HttpServletRequest request) {
 		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
 
 		if (GF.getLoginYn(request)) {
 			try {
-				// 삭제 대상 이메일 첨부의 물리파일 경로 조회
-				List<EmailDTO> deleteList = emailMapper.getEmailFilePathList(mapParam);
 
-				if (deleteList == null) {
-					deleteList = new ArrayList<EmailDTO>();
-				}
+				List<HashMap<String, Object>> rows = this.getSaveGridList(mapParam, request);
+				for (HashMap<String, Object> gridList : rows) {
 
-				// 물리파일 삭제
-				for (int i = 0; i < deleteList.size(); i++) {
-					EmailDTO emailDto = deleteList.get(i);
-					String 원본파일경로 = GF.getString(emailDto.getFilePath());
+					List<HashMap<String, Object>> fileList = emailMapper.getEmailFilePathList(gridList);
 
-					if (GF.isEmpty(원본파일경로) == false) {
-						ApiDTO apiParam = new ApiDTO();
-						apiParam.setUrl(
-								GC.FILE_SERVER_URL + "/sys/email/deletePhysicalFileInServer");
-						apiParam.addParam("filePath", GF.encodeUrlBase64(원본파일경로));
-
-						HashMap<String, Object> apiReturn = GF.sendApi(apiParam);
-						if (GF.isResultOk(apiReturn)) {
-							Object responseObj = apiReturn.get(GC.RESULT_RESPONSE);
-
-							if (responseObj instanceof ResponseEntity<?>) {
-								ResponseEntity<?> response = (ResponseEntity<?>) responseObj;
-
-								if (response.getBody() instanceof HashMap) {
-									apiReturn = (HashMap<String, Object>) response.getBody();
-								}
-							}
-						}
-
-						if (GF.isResultOk(apiReturn) == false) {
-							mapReturn.put(GC.RESULT_CODE, GC.RESULT_FAIL);
-							mapReturn.put(GC.RESULT_MESSAGE, "물리파일 삭제에 실패했습니다.");
-							return mapReturn;
+					for (HashMap<String, Object> fileInfo : fileList) {
+						String 원본파일경로 = GF.getString(fileInfo.get("filePath"));
+						if (GF.isEmpty(원본파일경로) == false) {
+							GF.deleteFile(GC.FILE_ROOT + 원본파일경로);
+							System.out.println("삭제 :" + GC.FILE_ROOT + 원본파일경로);
 						}
 					}
+
+					int result = emailMapper.deleteEmail(gridList);
+
+					if (result > 0) {
+						mapReturn.put(GC.RESULT_CODE, GC.RESULT_OK);
+						mapReturn.put(GC.RESULT_MESSAGE, "삭제되었습니다.");
+					} else {
+						mapReturn.put(GC.RESULT_CODE, GC.RESULT_FAIL);
+						mapReturn.put(GC.RESULT_MESSAGE, "삭제할 데이터가 없습니다.");
+					}
+
+					mapReturn.put("resultCnt", result);
+
 				}
-
-				// DB 행 삭제
-				int result = emailMapper.deleteEmail(mapParam);
-
-				if (result > 0) {
-					mapReturn.put(GC.RESULT_CODE, GC.RESULT_OK);
-					mapReturn.put(GC.RESULT_MESSAGE, "삭제되었습니다.");
-				} else {
-					mapReturn.put(GC.RESULT_CODE, GC.RESULT_FAIL);
-					mapReturn.put(GC.RESULT_MESSAGE, "삭제할 데이터가 없습니다.");
-				}
-
-				mapReturn.put("resultCnt", result);
 
 			} catch (Exception e) {
 				mapReturn.put(GC.RESULT_CODE, GC.RESULT_ERROR);
@@ -218,50 +185,7 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 		return mapReturn;
 	}
 
-
-
-	public HashMap<String, Object> checkAndIncreaseDownCnt(HashMap<String, Object> mapParam,
-			HttpServletRequest request) {
-		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
-
-		if (GF.getLoginYn(request)) {
-			try {
-				String emailDwCnt = String.valueOf(emailMapper.getEmailDwCnt());
-				mapParam.put("maxDownloadCnt", emailDwCnt);
-
-				HashMap<String, Object> fileInfo = emailMapper.getDownloadInfo(mapParam);
-
-				int downCnt = Integer.parseInt(String.valueOf(fileInfo.get("downCnt")));
-				int maxDownloadCnt =
-						Integer.parseInt(String.valueOf(mapParam.get("maxDownloadCnt")));
-
-				if (downCnt >= maxDownloadCnt) {
-					mapReturn.put(GC.RESULT_CODE, GC.RESULT_ERROR);
-					mapReturn.put(GC.RESULT_MESSAGE, "다운로드 가능 횟수를 초과했습니다.");
-					return mapReturn;
-				}
-
-				mapParam.put("fileGrpSeq", fileInfo.get("fileGrpSeq"));
-				emailMapper.updateDownCnt(mapParam);
-
-				mapReturn.put(GC.RESULT_CODE, GC.RESULT_OK);
-				mapReturn.put(GC.RESULT_MESSAGE, "다운로드 가능합니다.");
-
-			} catch (Exception e) {
-				mapReturn.put(GC.RESULT_CODE, GC.RESULT_ERROR);
-				mapReturn.put(GC.RESULT_MESSAGE, SYS_MLANG.get("msg_DataError", request));
-				GF.error(log, e);
-			}
-		} else {
-			mapReturn.put(GC.RESULT_CODE, GC.RESULT_LOGOUT);
-			mapReturn.put(GC.RESULT_MESSAGE, SYS_MLANG.get("msg_mLogout", request));
-		}
-
-		return mapReturn;
-	}
-
-	public HashMap<String, Object> getLoadEmailSetting(HashMap<String, Object> mapParam,
-			HttpServletRequest request) {
+	public HashMap<String, Object> getLoadEmailSetting(HashMap<String, Object> mapParam, HttpServletRequest request) {
 		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
 
 		if (GF.getLoginYn(request)) {
@@ -284,8 +208,7 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 		return mapReturn;
 	}
 
-	public HashMap<String, Object> getSaveEmailSetting(HashMap<String, Object> mapParam,
-			HttpServletRequest request) {
+	public HashMap<String, Object> getEmailSetting(HashMap<String, Object> mapParam, HttpServletRequest request) {
 		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
 
 		if (GF.getLoginYn(request)) {
@@ -342,9 +265,7 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 		return mapReturn;
 	}
 
-
-	public HashMap<String, Object> deletePhysicalFileInServer(HashMap<String, Object> mapParam,
-			HttpServletRequest request) {
+	public HashMap<String, Object> deletePhysicalFileInServer(HashMap<String, Object> mapParam, HttpServletRequest request) {
 		HashMap<String, Object> mapReturn = new HashMap<String, Object>();
 
 		try {
@@ -387,8 +308,5 @@ public class EmailService extends BaseService<EmailDTO, EmailMapper> {
 
 		return mapReturn;
 	}
-
-
-
 
 }

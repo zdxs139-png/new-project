@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "../../../../mybatis-3-mapper.dtd">
+<mapper namespace="acms.sys.email.EmailMapper">
+
+	<select id="getEmailFileSeq" resultType="long">
+		SELECT NEXT VALUE FOR SYS_EMAIL_FILE_SEQ
+	</select>
+
+<select id="getLoadEmailGridData" parameterType="hashmap" resultType="EmailDto">
+	DECLARE @E_DW_CNT VARCHAR(10) =	(SELECT CODE_VAL FROM SYS_CODE
+			WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+				AND CODE_CD = 'EMAIL_DW_CNT');
+	
+	SELECT EMAIL_FILE_SEQ
+		, FILE_NM
+		, '링크복사' AS filecopy
+	    , '/common/fileDownload?fileId=' + FILE_G.FILE_GRP_ID AS fileLink
+		, (SELECT CODE_VAL FROM SYS_CODE WHERE CODE_GROUP_CD = 'SYS_EMAIL_STATUS' 
+			AND CODE_CD = IIF(STATUS = 'FILE_DEL', 'FILE_DEL',
+	        IIF(DOWN_CNT >= @E_DW_CNT, 'DW_N',
+	            IIF(GETDATE() >= DEL_DT, 'DW_N',
+	                IIF(STATUS = 'DW_Y', STATUS, 'DW_N'))))
+		) AS STATUS
+	    , dbo.getUserNm(FILE_E.REG_USER_SEQ) AS REG_USER_NM
+		, CONVERT(VARCHAR,DOWN_CNT)+' / '+@E_DW_CNT MAX_DOWN_CNT
+		, FILE_G.FILE_GRP_ID
+		, FILE_G.FILE_GRP_SEQ
+		, CONVERT(VARCHAR(19), FILE_E.REG_DT, 120) REG_DT
+		, CONVERT(VARCHAR(19), DEL_DT, 120) DEL_DT
+		, RMK
+		
+	FROM SYS_EMAIL_FILE AS FILE_E
+	LEFT JOIN SYS_FILE_GROUP AS FILE_G
+	ON FILE_E.FILE_GRP_SEQ = FILE_G.FILE_GRP_SEQ
+	LEFT JOIN 
+	(SELECT 
+	    FILE_GRP_SEQ,
+	    MAX(DOWN_CNT) AS DOWN_CNT,
+	    MAX(
+	        CASE 
+	            WHEN RN = 1 THEN 
+	                FILE_NM + 
+	                CASE 
+	                    WHEN CNT > 1 THEN ' 외 ' + CAST(CNT - 1 AS VARCHAR) + '건'
+	                    ELSE ''
+	                END
+	        END
+	    ) AS FILE_NM
+	FROM (
+	    SELECT 
+	        F.FILE_GRP_SEQ
+	        ,F.FILE_NM
+	        ,F.DOWN_CNT
+	        ,F.SORT
+	        ,ROW_NUMBER() OVER (PARTITION BY F.FILE_GRP_SEQ ORDER BY F.SORT) AS RN
+	        ,COUNT(1) OVER (PARTITION BY F.FILE_GRP_SEQ) AS CNT
+	    FROM SYS_FILE F
+	    WHERE F.FILE_GRP_SEQ IN (
+	        SELECT FILE_GRP_SEQ 
+	        FROM SYS_EMAIL_FILE 
+	            WHERE 1 = 1	           
+	    )
+	) T
+	GROUP BY FILE_GRP_SEQ) GRP_FILE
+	ON FILE_E.FILE_GRP_SEQ = GRP_FILE.FILE_GRP_SEQ
+	WHERE 1 = 1
+	AND ((SELECT USER_SEQ FROM SYS_USER WHERE USER_ID = 'OP_ADMIN') = #{loginUserSeq} or FILE_E.REG_USER_SEQ = #{loginUserSeq})
+	ORDER BY REG_DT DESC
+</select>
+
+
+
+	<insert id="insertEmail" parameterType="hashmap">
+		INSERT INTO SYS_EMAIL_FILE (
+			EMAIL_FILE_SEQ,
+			FILE_GRP_SEQ,
+			RMK,
+			STATUS,
+			REG_USER_SEQ,
+			REG_DT,
+			DEL_DT
+		) VALUES (
+			#{emailFileSeq},
+			#{fileGrpSeq},
+			#{rmk},
+			#{status},
+			#{regUserSeq},
+			GETDATE(),
+			DATEADD(DAY, CONVERT(INT, #{maxDownloadDay}), GETDATE())
+		)
+	</insert>
+
+<update id="updateEmail" parameterType="hashmap">
+    UPDATE SYS_EMAIL_FILE
+    SET
+        FILE_GRP_SEQ = #{fileGrpSeq},
+        RMK = #{rmk},
+        STATUS = #{status},
+        DEL_DT = DATEADD(DAY, CONVERT(INT, #{maxDownloadDay}), REG_DT)
+    WHERE EMAIL_FILE_SEQ = #{emailFileSeq}
+</update>
+
+<delete id="deleteEmail" parameterType="hashmap">
+    DELETE FROM SYS_EMAIL_FILE
+    WHERE EMAIL_FILE_SEQ = #{emailFileSeq}
+</delete>
+
+<select id="getEmailFilePathList" parameterType="hashmap" resultType="hashmap">
+    SELECT F.FILE_PATH AS filePath
+    FROM SYS_EMAIL_FILE EF
+    LEFT JOIN SYS_FILE F
+        ON EF.FILE_GRP_SEQ = F.FILE_GRP_SEQ
+    WHERE EF.EMAIL_FILE_SEQ = #{emailFileSeq}
+      AND F.FILE_PATH IS NOT NULL
+      AND F.FILE_PATH LIKE '%/EMAIL/%'
+</select>
+
+<select id="getDownloadInfo" parameterType="hashmap" resultType="hashmap">
+    SELECT TOP 1
+          EF.FILE_GRP_SEQ AS fileGrpSeq
+        , ISNULL(SF.DOWN_CNT, 0) AS downCnt
+    FROM SYS_EMAIL_FILE EF
+    LEFT JOIN SYS_FILE SF
+        ON SF.FILE_GRP_SEQ = EF.FILE_GRP_SEQ
+    WHERE EF.EMAIL_FILE_SEQ = #{emailFileSeq}
+</select>
+
+<update id="updateDownCnt" parameterType="hashmap">
+    UPDATE SYS_FILE
+    SET
+        DOWN_CNT = ISNULL(DOWN_CNT, 0) + 1
+    WHERE FILE_GRP_SEQ = #{fileGrpSeq}
+</update>
+
+<select id="deleteEmailFileList" parameterType="hashmap" resultType="EmailDto">
+	SELECT EMAIL_FILE_SEQ, F.FILE_PATH
+	FROM SYS_EMAIL_FILE EMAIL_F
+	LEFT JOIN SYS_FILE F
+	ON EMAIL_F.FILE_GRP_SEQ = F.FILE_GRP_SEQ
+	WHERE F.FILE_PATH LIKE '%/EMAIL/%'
+	AND STATUS != 'FILE_DEL'
+	AND GETDATE() >= DEL_DT 
+</select>
+
+<update id="updateStatus" parameterType="hashmap">
+	UPDATE SYS_EMAIL_FILE SET STATUS = 'FILE_DEL'
+	WHERE EMAIL_FILE_SEQ IN 
+	<foreach collection="emailItemSeqs" item="emailFileSeq" open="(" separator="," close=")">
+		#{emailFileSeq}
+	</foreach>
+	
+</update>
+
+<select id="getEmailDwDay" resultType="int">
+    SELECT CONVERT(INT, CODE_VAL)
+    FROM SYS_CODE
+    WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+      AND CODE_CD = 'EMAIL_DW_DAY'
+</select>
+
+<select id="getEmailDwCnt" resultType="int">
+    SELECT CONVERT(INT, CODE_VAL)
+    FROM SYS_CODE
+    WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+      AND CODE_CD = 'EMAIL_DW_CNT'
+</select>
+
+<select id="getEmailSetting" parameterType="hashmap" resultType="hashmap">
+    SELECT
+          MAX(CASE WHEN CODE_CD = 'EMAIL_GB' THEN CODE_VAL END) AS mailQuota
+        , MAX(CASE WHEN CODE_CD = 'EMAIL_DW_CNT' THEN CODE_VAL END) AS fileDownCnt
+        , MAX(CASE WHEN CODE_CD = 'EMAIL_DW_DAY' THEN CODE_VAL END) AS downDay
+        , dbo.getUserNm(MAX(MODI_USER_SEQ)) AS modUserNm
+        , CONVERT(VARCHAR(19), MAX(MODI_DT), 120) AS modDt
+    FROM SYS_CODE
+    WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+      AND CODE_CD IN ('EMAIL_GB', 'EMAIL_DW_CNT', 'EMAIL_DW_DAY')
+</select>
+
+<update id="updateEmailSettingMailQuota" parameterType="hashmap">
+    UPDATE SYS_CODE
+    SET
+        CODE_VAL = #{mailQuota},
+        MODI_USER_SEQ = #{modiUserSeq},
+        MODI_DT = GETDATE()
+    WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+      AND CODE_CD = 'EMAIL_GB'
+</update>
+
+<update id="updateEmailSettingDownCnt" parameterType="hashmap">
+    UPDATE SYS_CODE
+    SET
+        CODE_VAL = #{fileDownCnt},
+        MODI_USER_SEQ = #{modiUserSeq},
+        MODI_DT = GETDATE()
+    WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+      AND CODE_CD = 'EMAIL_DW_CNT'
+</update>
+
+<update id="updateEmailSettingDownDay" parameterType="hashmap">
+    UPDATE SYS_CODE
+    SET
+        CODE_VAL = #{downDay},
+        MODI_USER_SEQ = #{modiUserSeq},
+        MODI_DT = GETDATE()
+    WHERE CODE_GROUP_CD = 'SYS_EMAIL_FILE'
+      AND CODE_CD = 'EMAIL_DW_DAY'
+</update>
+
+
+</mapper>
