@@ -10,6 +10,7 @@
 	<head>
 		<jsp:directive.include file="page_head.jsp"/>
 		<style>
+		html, body{height: 100%; margin: 0; overflow: hidden;}
 		.popup_header {background: #5189ae;padding: 10px 25px;}
 		.popup_ul{list-style: none;display: flex;justify-content: space-between; margin: 0px; padding: 0px;}
 		.popup_title{color: #ffffff;font-weight: bold;font-size: 20px; line-height: 50px;}
@@ -17,29 +18,33 @@
 		.dhx_button--view_flat.dhx_button--color_primary:hover{background-color: #f3f3f3;outline-width: 0;color: #2f3031;border: 1px solid #616161;border-radius: 5px;}
 		.dhx_button--view_flat.dhx_button--color_primary:active
 		,.dhx_button--view_flat.dhx_button--color_primary:focus
-		 {background-color: #dddddd;outline-width: 0;color: #2f3031;border: 1px solid #616161;border-radius: 5px;}		
-		.manual_box{width: 80%; text-align: center; margin: 0 auto; padding: 20px 0;}
-		.manual_box img{width: 900px; max-width: 100%; height: auto;}
+		 {background-color: #dddddd;outline-width: 0;color: #2f3031;border: 1px solid #616161;border-radius: 5px;}
+		#layout, .popup_layout{height: calc(100vh - 70px) !important; overflow: hidden;}
+		.manual_box{width: 80%; height: calc(100vh - 170px); text-align: center; margin: 0 auto; padding: 20px 0; box-sizing: border-box; overflow-y: auto; overflow-x: hidden;}
+		.manual_box img{width: 900px; max-width: 100%; height: auto; display: block; margin: 0 auto;}
+		
 		</style>
 	</head>
 	<body>
 		<jsp:directive.include file="page_script.jsp" />
 
-		<div class="popup_header">
-			<nav>
-				<ul class="popup_ul">
-					<li class=""><span class="popup_title"></span></li>
-					<li class=""></li>
-				</ul>
-			</nav>
-		</div>
-
-		<script>	
+	<div class="popup_header">
+		<nav>
+			<ul class="popup_ul">
+				<li class=""><span class="popup_title"></span></li>
+				<li class=""></li>
+			</ul>
+		</nav>
+	</div>
+	<script>	
+		
+		
+		// ********************************************************************************************
+		// 변수 선언
+		// ********************************************************************************************
 			$(document).ready(function() {
 				let toolbarTitle = POPUP_PARAM.toolbarTitle;
-				toolbarTitle = $('<div>').html(toolbarTitle).text();
-				toolbarTitle = toolbarTitle.replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s()._-]/g, '').trim();
-				$('.popup_title').text(toolbarTitle);
+				$('.popup_title').html(toolbarTitle);
 			});
 
 			// ********************************************************************************************
@@ -78,7 +83,9 @@
 			        }
 			    ]
 			});		
-			
+			// 공통 팝업 숨김
+
+				layout.popup_header.hide();
 			//**********************************************************************************
 			// 탭 세팅
 			//**********************************************************************************
@@ -91,6 +98,7 @@
 			});
 
 			tabbar = initTabbar(tabbar);
+			
 		</script>
 	</body>
 </html>
