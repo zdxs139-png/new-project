@@ -37,7 +37,9 @@
 		<script>	
 			$(document).ready(function() {
 				let toolbarTitle = POPUP_PARAM.toolbarTitle;
-				$('.popup_title').html(toolbarTitle);
+				toolbarTitle = $('<div>').html(toolbarTitle).text();
+				toolbarTitle = toolbarTitle.replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s()._-]/g, '').trim();
+				$('.popup_title').text(toolbarTitle);
 			});
 
 			// ********************************************************************************************
