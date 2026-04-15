@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "../../../../mybatis-3-mapper.dtd">
+<mapper namespace="acms.pcm.frm.FrmMapper">
+	<select id="getFrmSeq" resultType="long" flushCache="true">
+		SELECT NEXT VALUE FOR PCM_FRM_SEQ
+	</select>
+	<select id="getNow" resultType="String">
+		SELECT GETDATE()
+	</select>
+	<sql id = 'entity'>
+		PCM_FRM
+	</sql>
+	<sql id = 'entity_alias'>
+		FRM
+	</sql>
+	<select id="getFrmList" resultType="FrmDTO">
+		SELECT
+		<trim suffixOverrides=",">
+			<foreach collection="fieldNames" item="field" separator=",">
+				<choose>
+					<when test="field.toUpperCase().endsWith('_DT')">
+						CONVERT(varchar, <include refid="entity_alias"/>.${field}, 23) AS ${field}
+					</when>
+					<when test="field.toUpperCase().startsWith('ATTACH')">
+					</when>
+					<otherwise>
+						<include refid="entity_alias"/>.${field}
+					</otherwise>
+				</choose>
+			</foreach>
+		</trim>
+		<include refid="fileColumn"/>
+		FROM <include refid="entity"/> AS <include refid="entity_alias"/>
+		<include refid="fileJoin"/>
+		WHERE 1=1
+		AND <include refid="entity_alias"/>.DEL_YN = 'N'
+	</select>
+	<insert id="insertFrm">
+		INSERT INTO PCM_FRM (
+		<trim suffixOverrides=",">
+			<foreach collection="fieldNames" item="field" separator=",">
+				${field}
+			</foreach>
+		</trim>
+		) VALUES (
+		<trim suffixOverrides=",">
+			<foreach collection="fieldValues" item="value" separator=",">
+				#{value}
+			</foreach>
+		</trim>
+		)
+	</insert>
+	<update id="updateFrm">
+		UPDATE PCM_FRM
+		<set>
+			<foreach collection="fieldNames" item="field" index="index" separator=",">
+				${field} = #{fieldValues[${index}]}
+			</foreach>
+		</set>
+		WHERE FRM_SEQ = #{frmSeq}
+	</update>
+	<sql id="fileColumn">
+		, FILE_GROUP.FILE_GRP_ID as ATTACH_FILE_GRP_ID
+		, dbo.getFileGrpNm(FILE_GROUP.FILE_GRP_SEQ) as ATTACH_FILE_GRP_NM
+	</sql>
+	<sql id="fileJoin">
+		LEFT JOIN SYS_FILE_GROUP FILE_GROUP
+		ON FRM.ATTACH_FILE_GRP_SEQ = FILE_GROUP.FILE_GRP_SEQ
+	</sql>
+</mapper>
