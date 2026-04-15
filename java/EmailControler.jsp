@@ -68,4 +68,9 @@ public class EmailController {
 		return commonService.goToPage(request, model, "/common/outlookSettingPopup");
 	}
 
+	@RequestMapping("/sys/email/deletePhysicalFileInServer")
+	public @ResponseBody HashMap<String, Object> 물리파일_삭제(@RequestParam HashMap<String, Object> mapParam, HttpServletRequest request) throws Exception {
+		return emailService.deletePhysicalFileInServer(mapParam, request);
+	}
+
 }
