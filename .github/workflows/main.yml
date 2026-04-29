@@ -35,7 +35,13 @@ jobs:
         run: |
           echo "XML 파일 목록"
           find xml -name "*.xml" -print
-           - name: XML 문법 검사       ← 여기부터 추가
-      - run: |
+      - name: XML 문법 검사
+        run: |
+          sudo apt-get update -y
           sudo apt-get install -y libxml2-utils
-          find xml -name "*.xml" | xargs xmllint --noout
+          if find xml -name "*.xml" | grep -q .; then
+            find xml -name "*.xml" | xargs xmllint --noout
+            echo "XML 문법 검사 통과"
+          else
+            echo "XML 파일 없음 - 검사 건너뜀"
+          fi
